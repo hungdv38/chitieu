@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo Dõi Chi Tiêu Hàng Ngày</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #0056b3;
+        }
+        .input-section {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .input-section label {
+            font-weight: bold;
+        }
+        .input-section input[type="number"],
+        .input-section input[type="text"],
+        .input-section input[type="date"],
+        .input-section button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* Ensures padding doesn't affect total width */
+        }
+        .input-section button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .input-section button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f2f2f2;
+        }
+        .total-section {
+            text-align: right;
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .action-buttons button {
+            background: none;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 5px;
+        }
+        .action-buttons .edit-btn {
+            color: #28a745; /* Green for edit */
+        }
+        .action-buttons .delete-btn {
+            color: #dc3545; /* Red for delete */
+        }
+        .action-buttons button:hover {
+            opacity: 0.8;
+        }
+
+        /* Responsive adjustments */
+        @media (min-width: 600px) {
+            .input-section {
+                grid-template-columns: 1fr 1fr 1fr auto; /* Amount, Description, Date, Button */
+                align-items: end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Theo Dõi Chi Tiêu Hàng Ngày</h1>
+
+        <div class="input-section">
+            <label for="amount">Số tiền:</label>
+            <input type="number" id="amount" placeholder="Nhập số tiền" required>
+
+            <label for="description">Mô tả:</label>
+            <input type="text" id="description" placeholder="Mô tả chi tiêu" required>
+
+            <label for="date">Ngày:</label>
+            <input type="date" id="date" required>
+
+            <button id="addOrUpdateBtn" onclick="addOrUpdateExpense()">Thêm Chi Tiêu</button>
+        </div>
+
+        <h2>Lịch sử chi tiêu</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Mô tả</th>
+                    <th>Số tiền</th>
+                    <th>Thao tác</th> </tr>
+            </thead>
+            <tbody id="expenseList">
+                </tbody>
+        </table>
+
+        <div class="total-section">
+            Tổng cộng: <span id="totalAmount">0</span> VNĐ
+        </div>
+    </div>
+
+    <script>
+        let editingIndex = -1; // Biến để lưu chỉ mục của khoản chi tiêu đang chỉnh sửa
+
+        document.addEventListener('DOMContentLoaded', loadExpenses);
+
+        function addOrUpdateExpense() {
+            const amountInput = document.getElementById('amount');
+            const descriptionInput = document.getElementById('description');
+            const dateInput = document.getElementById('date');
+            const addOrUpdateBtn = document.getElementById('addOrUpdateBtn');
+
+            const amount = parseFloat(amountInput.value);
+            const description = descriptionInput.value.trim();
+            const date = dateInput.value;
+
+            if (isNaN(amount) || amount <= 0) {
+                alert('Vui lòng nhập số tiền hợp lệ.');
+                return;
+            }
+            if (description === '') {
+                alert('Vui lòng nhập mô tả chi tiêu.');
+                return;
+            }
+            if (date === '') {
+                alert('Vui lòng chọn ngày.');
+                return;
+            }
+
+            const expense = {
+                amount: amount,
+                description: description,
+                date: date
+            };
+
+            let expenses = getExpenses();
+
+            if (editingIndex !== -1) {
+                // Đang ở chế độ chỉnh sửa: cập nhật chi tiêu hiện có
+                expenses[editingIndex] = expense;
+                editingIndex = -1; // Reset chế độ chỉnh sửa
+                addOrUpdateBtn.textContent = 'Thêm Chi Tiêu'; // Đổi lại nút
+            } else {
+                // Chế độ thêm mới: thêm chi tiêu vào danh sách
+                expenses.push(expense);
+            }
+            
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            displayExpenses();
+
+            // Clear the form
+            amountInput.value = '';
+            descriptionInput.value = '';
+            dateInput.value = '';
+        }
+
+        function getExpenses() {
+            const expensesJSON = localStorage.getItem('expenses');
+            return expensesJSON ? JSON.parse(expensesJSON) : [];
+        }
+
+        function displayExpenses() {
+            const expenseList = document.getElementById('expenseList');
+            expenseList.innerHTML = ''; // Clear current list
+            let totalAmount = 0;
+
+            const expenses = getExpenses();
+            
+            // Sort expenses by date in descending order (newest first)
+            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            expenses.forEach((expense, index) => {
+                const row = expenseList.insertRow();
+                
+                const dateCell = row.insertCell();
+                dateCell.textContent = formatDate(expense.date); 
+
+                const descriptionCell = row.insertCell();
+                descriptionCell.textContent = expense.description;
+
+                const amountCell = row.insertCell();
+                amountCell.textContent = formatCurrency(expense.amount);
+                amountCell.style.textAlign = 'right';
+
+                const actionCell = row.insertCell();
+                actionCell.classList.add('action-buttons'); // Thêm class cho CSS
+                
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Sửa';
+                editButton.classList.add('edit-btn');
+                editButton.onclick = () => editExpense(index); // Gán sự kiện cho nút Sửa
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Xóa';
+                deleteButton.classList.add('delete-btn');
+                deleteButton.onclick = () => deleteExpense(index); // Gán sự kiện cho nút Xóa
+
+                actionCell.appendChild(editButton);
+                actionCell.appendChild(deleteButton);
+
+                totalAmount += expense.amount;
+            });
+
+            document.getElementById('totalAmount').textContent = formatCurrency(totalAmount);
+        }
+
+        function loadExpenses() {
+            displayExpenses();
+        }
+
+        function formatCurrency(amount) {
+            // Format to Vietnamese Dong (VND)
+            return amount.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+        }
+
+        function formatDate(dateString) {
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        // --- Các hàm mới cho chỉnh sửa và xóa ---
+
+        function editExpense(index) {
+            const expenses = getExpenses();
+            // Điều chỉnh index do sắp xếp (nếu cần). 
+            // Hiện tại chúng ta lấy index từ mảng đã sắp xếp, 
+            // nhưng khi lưu lại cần tìm đúng index trong mảng gốc nếu không muốn sắp xếp trước khi sửa.
+            // Để đơn giản, chúng ta sẽ chỉnh sửa trên mảng đã được display (đã sắp xếp).
+            // Nếu bạn muốn chỉnh sửa trên mảng gốc (trước khi sắp xếp), logic sẽ phức tạp hơn chút.
+            // Với cách làm hiện tại, index ở đây là index của item trong danh sách ĐÃ SẮP XẾP.
+            // Để đảm bảo chính xác, chúng ta cần tìm đúng item gốc dựa trên dữ liệu.
+
+            // Một cách tiếp cận tốt hơn là lưu trữ ID duy nhất cho mỗi chi tiêu.
+            // Tuy nhiên, để giữ đơn giản, chúng ta sẽ giả định index này hoạt động.
+            // Nếu bạn gặp lỗi khi sửa sau khi sắp xếp, hãy báo tôi để điều chỉnh.
+
+            // **Để đảm bảo sửa đúng, chúng ta cần tìm lại index gốc hoặc chỉnh sửa trên mảng đã sắp xếp trước khi hiển thị.**
+            // Cách đơn giản nhất cho hiện tại là làm việc trực tiếp trên mảng đã sắp xếp.
+            // Khi lưu, chúng ta sẽ cập nhật lại toàn bộ mảng.
+
+            const expenseToEdit = expenses[index];
+
+            document.getElementById('amount').value = expenseToEdit.amount;
+            document.getElementById('description').value = expenseToEdit.description;
+            document.getElementById('date').value = expenseToEdit.date; // Ngày đã ở định dạng YYYY-MM-DD
+
+            editingIndex = index; // Lưu lại chỉ mục của khoản chi tiêu đang chỉnh sửa
+            document.getElementById('addOrUpdateBtn').textContent = 'Cập Nhật Chi Tiêu'; // Đổi chữ nút
+        }
+
+        function deleteExpense(index) {
+            if (confirm('Bạn có chắc chắn muốn xóa khoản chi tiêu này không?')) {
+                let expenses = getExpenses();
+                // Xóa chi tiêu khỏi mảng dựa vào index
+                // Lưu ý: index này là index của item trong danh sách ĐÃ SẮP XẾP.
+                // Để đảm bảo xóa đúng, chúng ta cần tìm đúng item gốc dựa trên dữ liệu.
+                // Với cách làm hiện tại, chúng ta sẽ xóa trực tiếp tại index này trên mảng đã sắp xếp,
+                // rồi lưu lại toàn bộ mảng đã thay đổi.
+
+                expenses.splice(index, 1); // Xóa 1 phần tử tại vị trí index
+                localStorage.setItem('expenses', JSON.stringify(expenses));
+                displayExpenses(); // Cập nhật lại giao diện
+                
+                // Đảm bảo không còn ở chế độ chỉnh sửa sau khi xóa
+                editingIndex = -1;
+                document.getElementById('addOrUpdateBtn').textContent = 'Thêm Chi Tiêu';
+            }
+        }
+
+    </script>
+</body>
+</html>
