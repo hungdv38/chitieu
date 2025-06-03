@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Theo Dõi Chi Tiêu Hàng Ngày</title>
+    <title>Quản Lý Thu Chi Hàng Ngày</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -31,15 +31,23 @@
         .input-section label {
             font-weight: bold;
         }
-        .input-section input[type="number"],
-        .input-section input[type="text"],
+        .input-section input[type="text"].formatted-amount-input { 
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            text-align: right; 
+        }
+        .input-section input[type="text"]:not(.formatted-amount-input),
         .input-section input[type="date"],
+        .input-section select,
         .input-section button {
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            box-sizing: border-box; /* Ensures padding doesn't affect total width */
+            box-sizing: border-box;
         }
         .input-section button {
             background-color: #007bff;
@@ -54,7 +62,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin-top: 10px; /* Adjust spacing */
         }
         table th, table td {
             border: 1px solid #ddd;
@@ -79,19 +87,119 @@
             margin-right: 5px;
         }
         .action-buttons .edit-btn {
-            color: #28a745; /* Green for edit */
+            color: #28a745; 
         }
         .action-buttons .delete-btn {
-            color: #dc3545; /* Red for delete */
+            color: #dc3545; 
         }
         .action-buttons button:hover {
             opacity: 0.8;
+        }
+        .transaction-type-thu {
+            color: green;
+            font-weight: bold;
+        }
+        .transaction-type-chi {
+            color: red;
+            font-weight: bold;
+        }
+        .daily-summary {
+            margin-top: 25px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            border-left: 5px solid #007bff;
+        }
+        .daily-summary h3 {
+            margin-top: 0;
+            color: #0056b3;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .daily-summary p {
+            margin: 5px 0;
+        }
+        .daily-summary .summary-thu {
+            color: green;
+            font-weight: bold;
+        }
+        .daily-summary .summary-chi {
+            color: red;
+            font-weight: bold;
+        }
+        .daily-summary .summary-balance {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .daily-summary-note {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+            word-wrap: break-word; 
+        }
+        .daily-summary-note-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
+        .daily-summary-note-btn:hover {
+            background-color: #5a6268;
+        }
+
+        /* Styles for expandable daily transaction lists */
+        .daily-transactions-section {
+            background-color: #fcfcfc;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden; /* Hide overflowing content during transition */
+        }
+        .daily-transactions-header {
+            background-color: #e2e6ea;
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            color: #333;
+        }
+        .daily-transactions-header:hover {
+            background-color: #d3d9df;
+        }
+        .daily-transactions-content {
+            max-height: 0; /* Hidden by default */
+            transition: max-height 0.3s ease-out; /* Smooth transition */
+            overflow: hidden;
+            padding: 0 15px;
+        }
+        .daily-transactions-content.expanded {
+            max-height: 1000px; /* Large enough to show content */
+            padding: 15px; /* Apply padding when expanded */
+        }
+        .daily-transactions-content table {
+            margin-top: 0;
+            width: 100%; /* Ensure table takes full width */
+        }
+        .expand-icon {
+            font-size: 1.2em;
+            transition: transform 0.2s;
+        }
+        .daily-transactions-content.expanded + .daily-transactions-header .expand-icon {
+            transform: rotate(90deg); /* Rotate icon when expanded */
         }
 
         /* Responsive adjustments */
         @media (min-width: 600px) {
             .input-section {
-                grid-template-columns: 1fr 1fr 1fr auto; /* Amount, Description, Date, Button */
+                grid-template-columns: 1fr 1fr 1fr 0.5fr auto; 
                 align-items: end;
             }
         }
@@ -99,150 +207,301 @@
 </head>
 <body>
     <div class="container">
-        <h1>Theo Dõi Chi Tiêu Hàng Ngày</h1>
+        <h1>Quản Lý Thu Chi Hàng Ngày</h1>
 
         <div class="input-section">
             <label for="amount">Số tiền:</label>
-            <input type="number" id="amount" placeholder="Nhập số tiền" required>
+            <input type="text" id="amount" class="formatted-amount-input" 
+                   placeholder="Nhập số tiền" required
+                   oninput="formatAmountInput(this)" 
+                   onfocus="unformatAmountInput(this)" 
+                   onblur="formatAmountInput(this)">
 
             <label for="description">Mô tả:</label>
-            <input type="text" id="description" placeholder="Mô tả chi tiêu" required>
+            <input type="text" id="description" placeholder="Mô tả giao dịch" required>
 
             <label for="date">Ngày:</label>
             <input type="date" id="date" required>
 
-            <button id="addOrUpdateBtn" onclick="addOrUpdateExpense()">Thêm Chi Tiêu</button>
+            <label for="type">Loại:</label>
+            <select id="type" required>
+                <option value="chi">Chi</option>
+                <option value="thu">Thu</option>
+            </select>
+
+            <button id="addOrUpdateBtn" onclick="addOrUpdateTransaction()">Thêm Giao Dịch</button>
         </div>
 
-        <h2>Lịch sử chi tiêu</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Ngày</th>
-                    <th>Mô tả</th>
-                    <th>Số tiền</th>
-                    <th>Thao tác</th> </tr>
-            </thead>
-            <tbody id="expenseList">
-                </tbody>
-        </table>
+        <h2>Tổng hợp theo ngày</h2>
+        <div id="dailySummaries">
+            </div>
+
+        <h2>Lịch sử giao dịch</h2>
+        <div id="transactionDisplayArea">
+            </div>
 
         <div class="total-section">
-            Tổng cộng: <span id="totalAmount">0</span> VNĐ
+            Tổng số dư chung: <span id="overallBalance">0</span> VNĐ
         </div>
     </div>
 
     <script>
-        let editingIndex = -1; // Biến để lưu chỉ mục của khoản chi tiêu đang chỉnh sửa
+        let editingTransactionId = null; 
+        let dailyNotes = {}; 
 
-        document.addEventListener('DOMContentLoaded', loadExpenses);
+        document.addEventListener('DOMContentLoaded', initializeApp); 
 
-        function addOrUpdateExpense() {
+        function initializeApp() {
+            loadTransactions();
+            loadDailyNotes();
+            setCurrentDate(); 
+        }
+
+        function generateUniqueId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function setCurrentDate() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0'); 
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
+        }
+
+        function formatAmountInput(input) {
+            let value = input.value.replace(/\./g, ''); 
+            let number = parseFloat(value);
+
+            if (isNaN(number)) {
+                input.value = '';
+                return;
+            }
+            input.value = number.toLocaleString('vi-VN'); 
+        }
+
+        function unformatAmountInput(input) {
+            input.value = input.value.replace(/\./g, ''); 
+        }
+
+        function addOrUpdateTransaction() {
             const amountInput = document.getElementById('amount');
             const descriptionInput = document.getElementById('description');
             const dateInput = document.getElementById('date');
+            const typeInput = document.getElementById('type');
             const addOrUpdateBtn = document.getElementById('addOrUpdateBtn');
 
-            const amount = parseFloat(amountInput.value);
+            const amount = parseFloat(amountInput.value.replace(/\./g, '')); 
             const description = descriptionInput.value.trim();
             const date = dateInput.value;
+            const type = typeInput.value;
 
             if (isNaN(amount) || amount <= 0) {
                 alert('Vui lòng nhập số tiền hợp lệ.');
                 return;
             }
             if (description === '') {
-                alert('Vui lòng nhập mô tả chi tiêu.');
+                alert('Vui lòng nhập mô tả giao dịch.');
                 return;
             }
             if (date === '') {
-                alert('Vui lòng chọn ngày.');
+                alert('Vui lòng chọn ngày.'); 
                 return;
             }
 
-            const expense = {
-                amount: amount,
-                description: description,
-                date: date
-            };
+            let transactions = getTransactions();
 
-            let expenses = getExpenses();
-
-            if (editingIndex !== -1) {
-                // Đang ở chế độ chỉnh sửa: cập nhật chi tiêu hiện có
-                expenses[editingIndex] = expense;
-                editingIndex = -1; // Reset chế độ chỉnh sửa
-                addOrUpdateBtn.textContent = 'Thêm Chi Tiêu'; // Đổi lại nút
+            if (editingTransactionId) {
+                const transactionIndex = transactions.findIndex(t => t.id === editingTransactionId);
+                if (transactionIndex !== -1) {
+                    transactions[transactionIndex] = { id: editingTransactionId, amount, description, date, type };
+                }
+                editingTransactionId = null; 
+                addOrUpdateBtn.textContent = 'Thêm Giao Dịch'; 
             } else {
-                // Chế độ thêm mới: thêm chi tiêu vào danh sách
-                expenses.push(expense);
+                const newTransaction = {
+                    id: generateUniqueId(), 
+                    amount: amount,
+                    description: description,
+                    date: date,
+                    type: type
+                };
+                transactions.push(newTransaction);
             }
             
-            localStorage.setItem('expenses', JSON.stringify(expenses));
-            displayExpenses();
+            saveTransactions(transactions);
+            displayTransactions();
 
-            // Clear the form
             amountInput.value = '';
             descriptionInput.value = '';
-            dateInput.value = '';
+            typeInput.value = 'chi'; 
+            setCurrentDate(); 
         }
 
-        function getExpenses() {
-            const expensesJSON = localStorage.getItem('expenses');
-            return expensesJSON ? JSON.parse(expensesJSON) : [];
+        function getTransactions() {
+            const transactionsJSON = localStorage.getItem('transactions');
+            return transactionsJSON ? JSON.parse(transactionsJSON) : [];
         }
 
-        function displayExpenses() {
-            const expenseList = document.getElementById('expenseList');
-            expenseList.innerHTML = ''; // Clear current list
-            let totalAmount = 0;
+        function saveTransactions(transactions) {
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+        }
 
-            const expenses = getExpenses();
+        function loadDailyNotes() {
+            const notesJSON = localStorage.getItem('dailyNotes');
+            dailyNotes = notesJSON ? JSON.parse(notesJSON) : {};
+        }
+
+        function saveDailyNote(date, note) {
+            dailyNotes[date] = note;
+            localStorage.setItem('dailyNotes', JSON.stringify(dailyNotes));
+            displayTransactions(); 
+        }
+
+        // --- Hàm mới để đóng/mở phần giao dịch chi tiết ---
+        function toggleDailyTransactions(date) {
+            const contentDiv = document.getElementById(`transactions-for-${date}`);
+            if (contentDiv) {
+                contentDiv.classList.toggle('expanded');
+                // Tự động cuộn đến phần này khi mở ra
+                if (contentDiv.classList.contains('expanded')) {
+                    contentDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function displayTransactions() {
+            const transactionDisplayArea = document.getElementById('transactionDisplayArea');
+            transactionDisplayArea.innerHTML = ''; 
             
-            // Sort expenses by date in descending order (newest first)
-            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            expenses.forEach((expense, index) => {
-                const row = expenseList.insertRow();
-                
-                const dateCell = row.insertCell();
-                dateCell.textContent = formatDate(expense.date); 
-
-                const descriptionCell = row.insertCell();
-                descriptionCell.textContent = expense.description;
-
-                const amountCell = row.insertCell();
-                amountCell.textContent = formatCurrency(expense.amount);
-                amountCell.style.textAlign = 'right';
-
-                const actionCell = row.insertCell();
-                actionCell.classList.add('action-buttons'); // Thêm class cho CSS
-                
-                const editButton = document.createElement('button');
-                editButton.textContent = 'Sửa';
-                editButton.classList.add('edit-btn');
-                editButton.onclick = () => editExpense(index); // Gán sự kiện cho nút Sửa
-
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = 'Xóa';
-                deleteButton.classList.add('delete-btn');
-                deleteButton.onclick = () => deleteExpense(index); // Gán sự kiện cho nút Xóa
-
-                actionCell.appendChild(editButton);
-                actionCell.appendChild(deleteButton);
-
-                totalAmount += expense.amount;
+            let overallBalance = 0;
+            const transactions = getTransactions();
+            
+            transactions.sort((a, b) => {
+                // Sắp xếp theo ngày giảm dần, nếu cùng ngày thì theo ID (thời gian tạo) giảm dần
+                if (a.date !== b.date) {
+                    return new Date(b.date) - new Date(a.date);
+                }
+                return b.id.localeCompare(a.id); 
             });
 
-            document.getElementById('totalAmount').textContent = formatCurrency(totalAmount);
+            const dailyData = {};
+            transactions.forEach(transaction => {
+                const date = transaction.date;
+                if (!dailyData[date]) {
+                    dailyData[date] = { thu: 0, chi: 0, transactions: [] };
+                }
+                if (transaction.type === 'thu') {
+                    dailyData[date].thu += transaction.amount;
+                    overallBalance += transaction.amount;
+                } else {
+                    dailyData[date].chi += transaction.amount;
+                    overallBalance -= transaction.amount;
+                }
+                dailyData[date].transactions.push(transaction);
+            });
+
+            const dailySummariesDiv = document.getElementById('dailySummaries');
+            dailySummariesDiv.innerHTML = '';
+            
+            const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(b) - new Date(a));
+
+            sortedDates.forEach(date => {
+                const summary = dailyData[date];
+                const dailyBalance = summary.thu - summary.chi;
+                const currentNote = dailyNotes[date] || ''; 
+
+                const summaryDiv = document.createElement('div');
+                summaryDiv.classList.add('daily-summary');
+                summaryDiv.innerHTML = `
+                    <h3>Ngày ${formatDate(date)} 
+                        <button class="daily-summary-note-btn" onclick="promptForNote('${date}')">Ghi chú</button>
+                    </h3>
+                    <p>Tổng thu: <span class="summary-thu">${formatCurrency(summary.thu)}</span></p>
+                    <p>Tổng chi: <span class="summary-chi">${formatCurrency(summary.chi)}</span></p>
+                    <p>Số dư cuối ngày: <span class="summary-balance">${formatCurrency(dailyBalance)}</span></p>
+                    <p class="daily-summary-note" id="note-${date}">${currentNote}</p>
+                `;
+                dailySummariesDiv.appendChild(summaryDiv);
+
+                // --- Tạo phần hiển thị giao dịch chi tiết theo ngày ---
+                const dailySection = document.createElement('div');
+                dailySection.classList.add('daily-transactions-section');
+                
+                // Tiêu đề có nút đóng/mở
+                const header = document.createElement('div');
+                header.classList.add('daily-transactions-header');
+                header.innerHTML = `
+                    Giao dịch ngày ${formatDate(date)} 
+                    <span class="expand-icon">&#9658;</span> `;
+                header.onclick = () => toggleDailyTransactions(date); // Gán sự kiện đóng/mở
+
+                const content = document.createElement('div');
+                content.classList.add('daily-transactions-content');
+                content.id = `transactions-for-${date}`; // Đặt ID để có thể đóng/mở
+
+                // Bảng chi tiết giao dịch cho ngày này
+                const table = document.createElement('table');
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Mô tả</th>
+                            <th>Số tiền</th>
+                            <th>Loại</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                `;
+                const tbody = table.querySelector('tbody');
+
+                // Thêm từng giao dịch vào bảng của ngày tương ứng
+                dailyData[date].transactions.forEach((transaction) => {
+                    const row = tbody.insertRow();
+                    
+                    const descriptionCell = row.insertCell();
+                    descriptionCell.textContent = transaction.description;
+
+                    const amountCell = row.insertCell();
+                    amountCell.textContent = formatCurrency(transaction.amount);
+                    amountCell.style.textAlign = 'right';
+
+                    const typeCell = row.insertCell();
+                    typeCell.textContent = transaction.type === 'thu' ? 'Thu' : 'Chi';
+                    typeCell.classList.add(transaction.type === 'thu' ? 'transaction-type-thu' : 'transaction-type-chi');
+
+                    const actionCell = row.insertCell();
+                    actionCell.classList.add('action-buttons');
+                    
+                    const editButton = document.createElement('button');
+                    editButton.textContent = 'Sửa';
+                    editButton.classList.add('edit-btn');
+                    editButton.onclick = () => editTransaction(transaction.id); 
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Xóa';
+                    deleteButton.classList.add('delete-btn');
+                    deleteButton.onclick = () => deleteTransaction(transaction.id); 
+
+                    actionCell.appendChild(editButton);
+                    actionCell.appendChild(deleteButton);
+                });
+
+                content.appendChild(table);
+                dailySection.appendChild(header);
+                dailySection.appendChild(content);
+                transactionDisplayArea.appendChild(dailySection); // Thêm phần ngày vào khu vực hiển thị chính
+            });
+
+            document.getElementById('overallBalance').textContent = formatCurrency(overallBalance);
         }
 
-        function loadExpenses() {
-            displayExpenses();
+        function loadTransactions() {
+            displayTransactions();
         }
 
         function formatCurrency(amount) {
-            // Format to Vietnamese Dong (VND)
             return amount.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
         }
 
@@ -251,55 +510,43 @@
             return `${day}/${month}/${year}`;
         }
 
-        // --- Các hàm mới cho chỉnh sửa và xóa ---
+        function editTransaction(id) {
+            const transactions = getTransactions();
+            const transactionToEdit = transactions.find(t => t.id === id);
 
-        function editExpense(index) {
-            const expenses = getExpenses();
-            // Điều chỉnh index do sắp xếp (nếu cần). 
-            // Hiện tại chúng ta lấy index từ mảng đã sắp xếp, 
-            // nhưng khi lưu lại cần tìm đúng index trong mảng gốc nếu không muốn sắp xếp trước khi sửa.
-            // Để đơn giản, chúng ta sẽ chỉnh sửa trên mảng đã được display (đã sắp xếp).
-            // Nếu bạn muốn chỉnh sửa trên mảng gốc (trước khi sắp xếp), logic sẽ phức tạp hơn chút.
-            // Với cách làm hiện tại, index ở đây là index của item trong danh sách ĐÃ SẮP XẾP.
-            // Để đảm bảo chính xác, chúng ta cần tìm đúng item gốc dựa trên dữ liệu.
+            if (transactionToEdit) {
+                document.getElementById('amount').value = transactionToEdit.amount; 
+                document.getElementById('description').value = transactionToEdit.description;
+                document.getElementById('date').value = transactionToEdit.date; 
+                document.getElementById('type').value = transactionToEdit.type;
 
-            // Một cách tiếp cận tốt hơn là lưu trữ ID duy nhất cho mỗi chi tiêu.
-            // Tuy nhiên, để giữ đơn giản, chúng ta sẽ giả định index này hoạt động.
-            // Nếu bạn gặp lỗi khi sửa sau khi sắp xếp, hãy báo tôi để điều chỉnh.
-
-            // **Để đảm bảo sửa đúng, chúng ta cần tìm lại index gốc hoặc chỉnh sửa trên mảng đã sắp xếp trước khi hiển thị.**
-            // Cách đơn giản nhất cho hiện tại là làm việc trực tiếp trên mảng đã sắp xếp.
-            // Khi lưu, chúng ta sẽ cập nhật lại toàn bộ mảng.
-
-            const expenseToEdit = expenses[index];
-
-            document.getElementById('amount').value = expenseToEdit.amount;
-            document.getElementById('description').value = expenseToEdit.description;
-            document.getElementById('date').value = expenseToEdit.date; // Ngày đã ở định dạng YYYY-MM-DD
-
-            editingIndex = index; // Lưu lại chỉ mục của khoản chi tiêu đang chỉnh sửa
-            document.getElementById('addOrUpdateBtn').textContent = 'Cập Nhật Chi Tiêu'; // Đổi chữ nút
-        }
-
-        function deleteExpense(index) {
-            if (confirm('Bạn có chắc chắn muốn xóa khoản chi tiêu này không?')) {
-                let expenses = getExpenses();
-                // Xóa chi tiêu khỏi mảng dựa vào index
-                // Lưu ý: index này là index của item trong danh sách ĐÃ SẮP XẾP.
-                // Để đảm bảo xóa đúng, chúng ta cần tìm đúng item gốc dựa trên dữ liệu.
-                // Với cách làm hiện tại, chúng ta sẽ xóa trực tiếp tại index này trên mảng đã sắp xếp,
-                // rồi lưu lại toàn bộ mảng đã thay đổi.
-
-                expenses.splice(index, 1); // Xóa 1 phần tử tại vị trí index
-                localStorage.setItem('expenses', JSON.stringify(expenses));
-                displayExpenses(); // Cập nhật lại giao diện
+                editingTransactionId = id; 
+                document.getElementById('addOrUpdateBtn').textContent = 'Cập Nhật Giao Dịch'; 
                 
-                // Đảm bảo không còn ở chế độ chỉnh sửa sau khi xóa
-                editingIndex = -1;
-                document.getElementById('addOrUpdateBtn').textContent = 'Thêm Chi Tiêu';
+                formatAmountInput(document.getElementById('amount'));
             }
         }
 
+        function deleteTransaction(id) {
+            if (confirm('Bạn có chắc chắn muốn xóa giao dịch này không?')) {
+                let transactions = getTransactions();
+                transactions = transactions.filter(t => t.id !== id); 
+                saveTransactions(transactions);
+                displayTransactions(); 
+                
+                editingTransactionId = null;
+                document.getElementById('addOrUpdateBtn').textContent = 'Thêm Giao Dịch';
+            }
+        }
+
+        function promptForNote(date) {
+            const currentNote = dailyNotes[date] || '';
+            const newNote = prompt(`Nhập ghi chú cho ngày ${formatDate(date)}:`, currentNote);
+            if (newNote !== null) { 
+                saveDailyNote(date, newNote);
+            }
+        }
     </script>
 </body>
 </html>
+
