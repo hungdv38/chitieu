@@ -203,11 +203,26 @@
                 align-items: end;
             }
         }
+
+        /* Style for error display */
+        #errorDisplay {
+            background-color: #f8d7da; /* Light red */
+            color: #721c24; /* Dark red */
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+            font-size: 0.9em;
+            word-break: break-all; /* Break long words */
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Quản Lý Thu Chi Hàng Ngày</h1>
+
+        <div id="errorDisplay"></div>
 
         <div class="input-section">
             <label for="amount">Số tiền:</label>
@@ -248,8 +263,7 @@
     <script type="module">
         // Import các hàm cần thiết từ Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js"; // Chỉ bật nếu bạn đã bật Analytics
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Thêm getDoc
 
         // Your web app's Firebase configuration (đoạn bạn đã cung cấp)
         const firebaseConfig = {
@@ -264,22 +278,31 @@
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        // const analytics = getAnalytics(app); // Chỉ cần nếu bạn đã bật Analytics
-
-        // Khởi tạo Firestore Database
-        const db = getFirestore(app);
+        const db = getFirestore(app); // Khởi tạo db ở đây
 
         // Biến toàn cục của ứng dụng
         let editingTransactionId = null; 
         let dailyNotes = {}; 
 
+        // Hàm để hiển thị lỗi trên giao diện
+        function displayError(message) {
+            const errorDiv = document.getElementById('errorDisplay');
+            errorDiv.textContent = 'Lỗi: ' + message;
+            errorDiv.style.display = 'block'; // Hiển thị khung lỗi
+        }
+
+        // Hàm để ẩn lỗi
+        function hideError() {
+            document.getElementById('errorDisplay').style.display = 'none';
+        }
+
         // Hàm khởi tạo ứng dụng, chạy khi DOM đã tải xong
-        // Không cần setTimeout hay cờ firebaseReady nữa vì tất cả là một module
         document.addEventListener('DOMContentLoaded', () => {
             initializeApp();
         });
 
         function initializeApp() { 
+            hideError(); // Ẩn lỗi cũ khi khởi tạo lại
             loadTransactions(); 
             loadDailyNotes(); 
             setCurrentDate(); 
@@ -313,6 +336,8 @@
         }
 
         async function addOrUpdateTransaction() {
+            hideError(); // Ẩn lỗi cũ khi bắt đầu một thao tác mới
+
             const amountInput = document.getElementById('amount');
             const descriptionInput = document.getElementById('description');
             const dateInput = document.getElementById('date');
@@ -347,12 +372,10 @@
 
             try {
                 if (editingTransactionId) {
-                    // Cập nhật giao dịch hiện có trên Firestore
                     const docRef = doc(db, 'transactions', editingTransactionId);
                     await updateDoc(docRef, transactionData);
                     alert('Cập nhật giao dịch thành công!');
                 } else {
-                    // Thêm giao dịch mới vào Firestore
                     await addDoc(collection(db, 'transactions'), transactionData);
                     alert('Thêm giao dịch thành công!');
                 }
@@ -364,10 +387,10 @@
                 amountInput.value = '';
                 descriptionInput.value = '';
                 typeInput.value = 'chi'; 
-                setCurrentDate(); // Đặt lại ngày hiện tại sau khi thêm/cập nhật
+                setCurrentDate(); 
             } catch (error) {
                 console.error("Lỗi khi thêm/cập nhật giao dịch:", error);
-                alert("Có lỗi xảy ra khi lưu giao dịch. Vui lòng thử lại: " + error.message);
+                displayError("Lỗi khi lưu giao dịch: " + error.message); // Hiển thị lỗi ra UI
             }
         }
 
@@ -383,7 +406,7 @@
                 });
             } catch (error) {
                 console.error("Lỗi khi đọc giao dịch từ Firestore:", error);
-                alert("Có lỗi xảy ra khi tải giao dịch: " + error.message);
+                displayError("Lỗi khi tải giao dịch: " + error.message); // Hiển thị lỗi ra UI
             }
             return transactions;
         }
@@ -391,8 +414,7 @@
         async function loadDailyNotes() {
             try {
                 const docRef = doc(db, 'settings', 'dailyNotes');
-                // Sử dụng getDoc thay vì getDocs cho một tài liệu cụ thể
-                const docSnap = await getDoc(docRef); 
+                const docSnap = await getDoc(docRef); // Dùng getDoc cho một tài liệu cụ thể
                 if (docSnap.exists()) {
                     dailyNotes = docSnap.data();
                 } else {
@@ -400,11 +422,13 @@
                 }
             } catch (error) {
                 console.error("Lỗi khi tải ghi chú hàng ngày:", error);
-                alert("Có lỗi xảy ra khi tải ghi chú: " + error.message);
+                displayError("Lỗi khi tải ghi chú: " + error.message); // Hiển thị lỗi ra UI
             }
         }
         
         async function saveDailyNote(date, note) {
+            hideError(); // Ẩn lỗi cũ khi bắt đầu một thao tác mới
+
             dailyNotes[date] = note;
             try {
                 const docRef = doc(db, 'settings', 'dailyNotes');
@@ -413,7 +437,7 @@
                 displayTransactions(); 
             } catch (error) {
                 console.error("Lỗi khi lưu ghi chú hàng ngày:", error);
-                alert("Có lỗi xảy ra khi lưu ghi chú. Vui lòng thử lại: " + error.message);
+                displayError("Lỗi khi lưu ghi chú: " + error.message); // Hiển thị lỗi ra UI
             }
         }
 
@@ -553,6 +577,8 @@
         }
 
         async function editTransaction(id) {
+            hideError(); // Ẩn lỗi cũ khi bắt đầu một thao tác mới
+
             const transactions = await getTransactionsFromFirestore(); 
             const transactionToEdit = transactions.find(t => t.id === id);
 
@@ -571,6 +597,7 @@
 
         async function deleteTransaction(id) {
             if (confirm('Bạn có chắc chắn muốn xóa giao dịch này không?')) {
+                hideError(); // Ẩn lỗi cũ khi bắt đầu một thao tác mới
                 try {
                     const docRef = doc(db, 'transactions', id);
                     await deleteDoc(docRef);
@@ -581,7 +608,7 @@
                     document.getElementById('addOrUpdateBtn').textContent = 'Thêm Giao Dịch';
                 } catch (error) {
                     console.error("Lỗi khi xóa giao dịch:", error);
-                    alert("Có lỗi xảy ra khi xóa giao dịch. Vui lòng thử lại: " + error.message);
+                    displayError("Lỗi khi xóa giao dịch: " + error.message); // Hiển thị lỗi ra UI
                 }
             }
         }
