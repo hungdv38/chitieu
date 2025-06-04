@@ -192,7 +192,7 @@
             font-size: 1.2em;
             transition: transform 0.2s;
         }
-        .daily-transactions-content.expanded .expand-icon { /* Sửa selector này */
+        .daily-transactions-content.expanded .expand-icon { 
             transform: rotate(90deg); 
         }
 
@@ -247,8 +247,8 @@
 
     <script type="module">
         // Import các hàm cần thiết từ Firebase SDK
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"; // Đã cập nhật phiên bản
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         // import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js"; // Chỉ bật nếu bạn đã bật Analytics
 
         // Your web app's Firebase configuration (đoạn bạn đã cung cấp)
@@ -267,19 +267,21 @@
         // const analytics = getAnalytics(app); // Chỉ cần nếu bạn đã bật Analytics
 
         // Khởi tạo Firestore
-        const db = getFirestore(app);
+        // **QUAN TRỌNG:** Truyền các hàm Firebase vào đối tượng window để script ứng dụng có thể sử dụng
+        window.fb_db = getFirestore(app);
+        window.fb_collection = collection;
+        window.fb_addDoc = addDoc;
+        window.fb_getDocs = getDocs;
+        window.fb_doc = doc;
+        window.fb_updateDoc = updateDoc;
+        window.fb_deleteDoc = deleteDoc;
+        window.fb_query = query;
+        window.fb_orderBy = orderBy;
+        window.fb_serverTimestamp = serverTimestamp;
+        window.fb_setDoc = setDoc; // Thêm setDoc cho ghi chú hàng ngày
 
-        // Biến toàn cục để sử dụng trong các hàm khác
-        window.db = db; // Gán db vào đối tượng window để các script khác có thể truy cập
-        window.collection = collection;
-        window.addDoc = addDoc;
-        window.getDocs = getDocs;
-        window.doc = doc;
-        window.updateDoc = updateDoc;
-        window.deleteDoc = deleteDoc;
-        window.query = query;
-        window.orderBy = orderBy;
-        window.serverTimestamp = serverTimestamp;
+        // Đánh dấu Firebase đã sẵn sàng
+        window.firebaseReady = true;
 
     </script>
 
@@ -288,15 +290,16 @@
         let dailyNotes = {}; 
 
         // Hàm khởi tạo ứng dụng
-        // Hàm này giờ không cần async vì các thao tác Firebase đã nằm trong các hàm riêng
         function initializeApp() { 
-            // Đảm bảo Firebase đã khởi tạo xong trước khi gọi các hàm này
-            // Chúng ta dùng setTimeout để chờ một chút, đảm bảo window.db đã có giá trị
-            setTimeout(() => {
+            // Chờ cho đến khi Firebase SDK được tải và các biến window.fb_... sẵn sàng
+            if (window.firebaseReady) {
                 loadTransactions(); 
                 loadDailyNotes(); 
                 setCurrentDate(); 
-            }, 100); // Chờ 100ms
+            } else {
+                // Nếu chưa sẵn sàng, thử lại sau một khoảng thời gian ngắn
+                setTimeout(initializeApp, 50); 
+            }
         }
 
         // Gọi initializeApp khi DOM đã tải xong
@@ -308,14 +311,14 @@
 
         function setCurrentDate() {
             const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0'); 
-            const dd = String(today.getDate()).padStart(2, '0');
-            document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0'); 
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('date').value = `${year}-${month}-${day}`;
         }
 
         function formatAmountInput(input) {
-            let value = input.value.replace(/\./g, ''); 
+            let value = input.value.replace(/\D/g, ''); // Chỉ giữ lại số
             let number = parseFloat(value);
 
             if (isNaN(number)) {
@@ -326,7 +329,7 @@
         }
 
         function unformatAmountInput(input) {
-            input.value = input.value.replace(/\./g, ''); 
+            input.value = input.value.replace(/\D/g, ''); // Chỉ giữ lại số
         }
 
         async function addOrUpdateTransaction() {
@@ -336,13 +339,14 @@
             const typeInput = document.getElementById('type');
             const addOrUpdateBtn = document.getElementById('addOrUpdateBtn');
 
-            const amount = parseFloat(amountInput.value.replace(/\./g, '')); 
+            // Lấy giá trị số thực từ input (loại bỏ tất cả ký tự không phải số)
+            const amount = parseFloat(amountInput.value.replace(/\D/g, '')); 
             const description = descriptionInput.value.trim();
             const date = dateInput.value;
             const type = typeInput.value;
 
             if (isNaN(amount) || amount <= 0) {
-                alert('Vui lòng nhập số tiền hợp lệ.');
+                alert('Vui lòng nhập số tiền hợp lệ và lớn hơn 0.');
                 return;
             }
             if (description === '') {
@@ -359,18 +363,18 @@
                 description: description,
                 date: date,
                 type: type,
-                timestamp: window.serverTimestamp() // Sử dụng serverTimestamp từ window
+                timestamp: window.fb_serverTimestamp() // Sử dụng serverTimestamp từ window
             };
 
             try {
                 if (editingTransactionId) {
                     // Cập nhật giao dịch hiện có trên Firestore
-                    const docRef = window.doc(window.db, 'transactions', editingTransactionId);
-                    await window.updateDoc(docRef, transactionData);
+                    const docRef = window.fb_doc(window.fb_db, 'transactions', editingTransactionId);
+                    await window.fb_updateDoc(docRef, transactionData);
                     alert('Cập nhật giao dịch thành công!');
                 } else {
                     // Thêm giao dịch mới vào Firestore
-                    await window.addDoc(window.collection(window.db, 'transactions'), transactionData);
+                    await window.fb_addDoc(window.fb_collection(window.fb_db, 'transactions'), transactionData);
                     alert('Thêm giao dịch thành công!');
                 }
                 editingTransactionId = null;
@@ -381,7 +385,7 @@
                 amountInput.value = '';
                 descriptionInput.value = '';
                 typeInput.value = 'chi'; 
-                setCurrentDate(); 
+                setCurrentDate(); // Đặt lại ngày hiện tại sau khi thêm/cập nhật
             } catch (error) {
                 console.error("Lỗi khi thêm/cập nhật giao dịch:", error);
                 alert("Có lỗi xảy ra khi lưu giao dịch. Vui lòng thử lại: " + error.message);
@@ -391,11 +395,10 @@
         async function getTransactionsFromFirestore() {
             const transactions = [];
             try {
-                // Sử dụng các hàm từ window
-                const q = window.query(window.collection(window.db, 'transactions'), 
-                                       window.orderBy('date', 'desc'), 
-                                       window.orderBy('timestamp', 'desc'));
-                const querySnapshot = await window.getDocs(q);
+                const q = window.fb_query(window.fb_collection(window.fb_db, 'transactions'), 
+                                       window.fb_orderBy('date', 'desc'), 
+                                       window.fb_orderBy('timestamp', 'desc'));
+                const querySnapshot = await window.fb_getDocs(q);
                 querySnapshot.forEach((doc) => {
                     transactions.push({ id: doc.id, ...doc.data() });
                 });
@@ -408,12 +411,14 @@
 
         async function loadDailyNotes() {
             try {
-                // Sử dụng các hàm từ window
-                const docRef = window.doc(window.db, 'settings', 'dailyNotes');
-                const docSnap = await window.getDocs(docRef); // Sửa từ get() sang getDocs()
-                if (docSnap.exists()) { // Kiểm tra docSnap.exists()
+                const docRef = window.fb_doc(window.fb_db, 'settings', 'dailyNotes');
+                const docSnap = await window.fb_getDocs(docRef); // Sử dụng getDocs cho tài liệu
+                if (docSnap.docs && docSnap.docs[0] && docSnap.docs[0].exists()) { // Kiểm tra nếu là kết quả của getDocs
+                    dailyNotes = docSnap.docs[0].data();
+                } else if (docSnap.exists && docSnap.exists()) { // Kiểm tra nếu là kết quả của getDoc (dùng cho 1 doc)
                     dailyNotes = docSnap.data();
-                } else {
+                }
+                else {
                     dailyNotes = {};
                 }
             } catch (error) {
@@ -422,13 +427,11 @@
             }
         }
         
-
         async function saveDailyNote(date, note) {
             dailyNotes[date] = note;
             try {
-                // Sử dụng các hàm từ window
-                const docRef = window.doc(window.db, 'settings', 'dailyNotes');
-                await window.setDoc(docRef, dailyNotes); // setDoc thay vì set()
+                const docRef = window.fb_doc(window.fb_db, 'settings', 'dailyNotes');
+                await window.fb_setDoc(docRef, dailyNotes); // Sử dụng setDoc để ghi đè hoặc tạo
                 alert('Ghi chú đã được lưu!');
                 displayTransactions(); 
             } catch (error) {
@@ -444,14 +447,14 @@
             let overallBalance = 0;
             const transactions = await getTransactionsFromFirestore(); 
             
-            // Sắp xếp (đã được Firebase sắp xếp một phần, nhưng vẫn đảm bảo nếu có trường hợp đặc biệt)
             transactions.sort((a, b) => {
                 if (a.date !== b.date) {
                     return new Date(b.date) - new Date(a.date);
                 }
                 // Sắp xếp theo timestamp nếu có, hoặc theo ID nếu không có timestamp
-                const tsA = a.timestamp ? a.timestamp.toDate() : new Date(0); // Chuyển timestamp Firestore thành Date
-                const tsB = b.timestamp ? b.timestamp.toDate() : new Date(0);
+                // Chuyển đổi timestamp của Firestore thành đối tượng Date để so sánh
+                const tsA = a.timestamp && typeof a.timestamp.toDate === 'function' ? a.timestamp.toDate() : new Date(0); 
+                const tsB = b.timestamp && typeof b.timestamp.toDate === 'function' ? b.timestamp.toDate() : new Date(0);
                 return tsB - tsA; 
             });
 
@@ -529,12 +532,4 @@
                     const row = tbody.insertRow();
                     
                     const descriptionCell = row.insertCell();
-                    descriptionCell.textContent = transaction.description;
-
-                    const amountCell = row.insertCell();
-                    amountCell.textContent = formatCurrency(transaction.amount);
-                    amountCell.style.textAlign = 'right';
-
-                    const typeCell = row.insertCell();
-                    typeCell.textContent = transaction.type === 'thu' ? 'Thu' : 'Chi';
-                    typeCell.classList.add(transaction.type === 'thu' ? 'tran
+                    descriptio
