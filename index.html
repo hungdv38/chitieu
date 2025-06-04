@@ -62,7 +62,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px; /* Adjust spacing */
+            margin-top: 10px; 
         }
         table th, table td {
             border: 1px solid #ddd;
@@ -159,7 +159,7 @@
             border: 1px solid #ddd;
             border-radius: 8px;
             margin-bottom: 15px;
-            overflow: hidden; /* Hide overflowing content during transition */
+            overflow: hidden; 
         }
         .daily-transactions-header {
             background-color: #e2e6ea;
@@ -175,25 +175,25 @@
             background-color: #d3d9df;
         }
         .daily-transactions-content {
-            max-height: 0; /* Hidden by default */
-            transition: max-height 0.3s ease-out; /* Smooth transition */
+            max-height: 0; 
+            transition: max-height 0.3s ease-out; 
             overflow: hidden;
             padding: 0 15px;
         }
         .daily-transactions-content.expanded {
-            max-height: 1000px; /* Large enough to show content */
-            padding: 15px; /* Apply padding when expanded */
+            max-height: 1000px; 
+            padding: 15px; 
         }
         .daily-transactions-content table {
             margin-top: 0;
-            width: 100%; /* Ensure table takes full width */
+            width: 100%; 
         }
         .expand-icon {
             font-size: 1.2em;
             transition: transform 0.2s;
         }
-        .daily-transactions-content.expanded + .daily-transactions-header .expand-icon {
-            transform: rotate(90deg); /* Rotate icon when expanded */
+        .daily-transactions-content.expanded .expand-icon { /* Sửa selector này */
+            transform: rotate(90deg); 
         }
 
         /* Responsive adjustments */
@@ -245,17 +245,62 @@
         </div>
     </div>
 
+    <script type="module">
+        // Import các hàm cần thiết từ Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"; // Đã cập nhật phiên bản
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js"; // Chỉ bật nếu bạn đã bật Analytics
+
+        // Your web app's Firebase configuration (đoạn bạn đã cung cấp)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBZVcG81DTu8tFy0uqxGYv4y7Nw1MX-aAU",
+            authDomain: "thu-chi-hang-ngay.firebaseapp.com",
+            projectId: "thu-chi-hang-ngay",
+            storageBucket: "thu-chi-hang-ngay.firebasestorage.app",
+            messagingSenderId: "436655969696",
+            appId: "1:436655969696:web:4d6251ec1b1bfd4e0ac0c5",
+            measurementId: "G-QP177SKFG" // Chỉ cần nếu bạn đã bật Analytics
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        // const analytics = getAnalytics(app); // Chỉ cần nếu bạn đã bật Analytics
+
+        // Khởi tạo Firestore
+        const db = getFirestore(app);
+
+        // Biến toàn cục để sử dụng trong các hàm khác
+        window.db = db; // Gán db vào đối tượng window để các script khác có thể truy cập
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.getDocs = getDocs;
+        window.doc = doc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.query = query;
+        window.orderBy = orderBy;
+        window.serverTimestamp = serverTimestamp;
+
+    </script>
+
     <script>
         let editingTransactionId = null; 
         let dailyNotes = {}; 
 
-        document.addEventListener('DOMContentLoaded', initializeApp); 
-
-        function initializeApp() {
-            loadTransactions();
-            loadDailyNotes();
-            setCurrentDate(); 
+        // Hàm khởi tạo ứng dụng
+        // Hàm này giờ không cần async vì các thao tác Firebase đã nằm trong các hàm riêng
+        function initializeApp() { 
+            // Đảm bảo Firebase đã khởi tạo xong trước khi gọi các hàm này
+            // Chúng ta dùng setTimeout để chờ một chút, đảm bảo window.db đã có giá trị
+            setTimeout(() => {
+                loadTransactions(); 
+                loadDailyNotes(); 
+                setCurrentDate(); 
+            }, 100); // Chờ 100ms
         }
+
+        // Gọi initializeApp khi DOM đã tải xong
+        document.addEventListener('DOMContentLoaded', initializeApp);
 
         function generateUniqueId() {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -284,7 +329,7 @@
             input.value = input.value.replace(/\./g, ''); 
         }
 
-        function addOrUpdateTransaction() {
+        async function addOrUpdateTransaction() {
             const amountInput = document.getElementById('amount');
             const descriptionInput = document.getElementById('description');
             const dateInput = document.getElementById('date');
@@ -309,81 +354,107 @@
                 return;
             }
 
-            let transactions = getTransactions();
+            const transactionData = {
+                amount: amount,
+                description: description,
+                date: date,
+                type: type,
+                timestamp: window.serverTimestamp() // Sử dụng serverTimestamp từ window
+            };
 
-            if (editingTransactionId) {
-                const transactionIndex = transactions.findIndex(t => t.id === editingTransactionId);
-                if (transactionIndex !== -1) {
-                    transactions[transactionIndex] = { id: editingTransactionId, amount, description, date, type };
+            try {
+                if (editingTransactionId) {
+                    // Cập nhật giao dịch hiện có trên Firestore
+                    const docRef = window.doc(window.db, 'transactions', editingTransactionId);
+                    await window.updateDoc(docRef, transactionData);
+                    alert('Cập nhật giao dịch thành công!');
+                } else {
+                    // Thêm giao dịch mới vào Firestore
+                    await window.addDoc(window.collection(window.db, 'transactions'), transactionData);
+                    alert('Thêm giao dịch thành công!');
                 }
-                editingTransactionId = null; 
-                addOrUpdateBtn.textContent = 'Thêm Giao Dịch'; 
-            } else {
-                const newTransaction = {
-                    id: generateUniqueId(), 
-                    amount: amount,
-                    description: description,
-                    date: date,
-                    type: type
-                };
-                transactions.push(newTransaction);
+                editingTransactionId = null;
+                addOrUpdateBtn.textContent = 'Thêm Giao Dịch';
+
+                await displayTransactions(); 
+
+                amountInput.value = '';
+                descriptionInput.value = '';
+                typeInput.value = 'chi'; 
+                setCurrentDate(); 
+            } catch (error) {
+                console.error("Lỗi khi thêm/cập nhật giao dịch:", error);
+                alert("Có lỗi xảy ra khi lưu giao dịch. Vui lòng thử lại: " + error.message);
             }
-            
-            saveTransactions(transactions);
-            displayTransactions();
-
-            amountInput.value = '';
-            descriptionInput.value = '';
-            typeInput.value = 'chi'; 
-            setCurrentDate(); 
         }
 
-        function getTransactions() {
-            const transactionsJSON = localStorage.getItem('transactions');
-            return transactionsJSON ? JSON.parse(transactionsJSON) : [];
+        async function getTransactionsFromFirestore() {
+            const transactions = [];
+            try {
+                // Sử dụng các hàm từ window
+                const q = window.query(window.collection(window.db, 'transactions'), 
+                                       window.orderBy('date', 'desc'), 
+                                       window.orderBy('timestamp', 'desc'));
+                const querySnapshot = await window.getDocs(q);
+                querySnapshot.forEach((doc) => {
+                    transactions.push({ id: doc.id, ...doc.data() });
+                });
+            } catch (error) {
+                console.error("Lỗi khi đọc giao dịch từ Firestore:", error);
+                alert("Có lỗi xảy ra khi tải giao dịch: " + error.message);
+            }
+            return transactions;
         }
 
-        function saveTransactions(transactions) {
-            localStorage.setItem('transactions', JSON.stringify(transactions));
+        async function loadDailyNotes() {
+            try {
+                // Sử dụng các hàm từ window
+                const docRef = window.doc(window.db, 'settings', 'dailyNotes');
+                const docSnap = await window.getDocs(docRef); // Sửa từ get() sang getDocs()
+                if (docSnap.exists()) { // Kiểm tra docSnap.exists()
+                    dailyNotes = docSnap.data();
+                } else {
+                    dailyNotes = {};
+                }
+            } catch (error) {
+                console.error("Lỗi khi tải ghi chú hàng ngày:", error);
+                alert("Có lỗi xảy ra khi tải ghi chú: " + error.message);
+            }
         }
+        
 
-        function loadDailyNotes() {
-            const notesJSON = localStorage.getItem('dailyNotes');
-            dailyNotes = notesJSON ? JSON.parse(notesJSON) : {};
-        }
-
-        function saveDailyNote(date, note) {
+        async function saveDailyNote(date, note) {
             dailyNotes[date] = note;
-            localStorage.setItem('dailyNotes', JSON.stringify(dailyNotes));
-            displayTransactions(); 
-        }
-
-        // --- Hàm mới để đóng/mở phần giao dịch chi tiết ---
-        function toggleDailyTransactions(date) {
-            const contentDiv = document.getElementById(`transactions-for-${date}`);
-            if (contentDiv) {
-                contentDiv.classList.toggle('expanded');
-                // Tự động cuộn đến phần này khi mở ra
-                if (contentDiv.classList.contains('expanded')) {
-                    contentDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
+            try {
+                // Sử dụng các hàm từ window
+                const docRef = window.doc(window.db, 'settings', 'dailyNotes');
+                await window.setDoc(docRef, dailyNotes); // setDoc thay vì set()
+                alert('Ghi chú đã được lưu!');
+                displayTransactions(); 
+            } catch (error) {
+                console.error("Lỗi khi lưu ghi chú hàng ngày:", error);
+                alert("Có lỗi xảy ra khi lưu ghi chú. Vui lòng thử lại: " + error.message);
             }
         }
 
-        function displayTransactions() {
+        async function displayTransactions() { 
             const transactionDisplayArea = document.getElementById('transactionDisplayArea');
             transactionDisplayArea.innerHTML = ''; 
             
             let overallBalance = 0;
-            const transactions = getTransactions();
+            const transactions = await getTransactionsFromFirestore(); 
             
+            // Sắp xếp (đã được Firebase sắp xếp một phần, nhưng vẫn đảm bảo nếu có trường hợp đặc biệt)
             transactions.sort((a, b) => {
-                // Sắp xếp theo ngày giảm dần, nếu cùng ngày thì theo ID (thời gian tạo) giảm dần
                 if (a.date !== b.date) {
                     return new Date(b.date) - new Date(a.date);
                 }
-                return b.id.localeCompare(a.id); 
+                // Sắp xếp theo timestamp nếu có, hoặc theo ID nếu không có timestamp
+                const tsA = a.timestamp ? a.timestamp.toDate() : new Date(0); // Chuyển timestamp Firestore thành Date
+                const tsB = b.timestamp ? b.timestamp.toDate() : new Date(0);
+                return tsB - tsA; 
             });
+
 
             const dailyData = {};
             transactions.forEach(transaction => {
@@ -398,7 +469,7 @@
                     dailyData[date].chi += transaction.amount;
                     overallBalance -= transaction.amount;
                 }
-                dailyData[date].transactions.push(transaction);
+                dailyData[date].transactions.push(transaction); 
             });
 
             const dailySummariesDiv = document.getElementById('dailySummaries');
@@ -424,23 +495,21 @@
                 `;
                 dailySummariesDiv.appendChild(summaryDiv);
 
-                // --- Tạo phần hiển thị giao dịch chi tiết theo ngày ---
                 const dailySection = document.createElement('div');
                 dailySection.classList.add('daily-transactions-section');
                 
-                // Tiêu đề có nút đóng/mở
                 const header = document.createElement('div');
                 header.classList.add('daily-transactions-header');
                 header.innerHTML = `
                     Giao dịch ngày ${formatDate(date)} 
-                    <span class="expand-icon">&#9658;</span> `;
-                header.onclick = () => toggleDailyTransactions(date); // Gán sự kiện đóng/mở
+                    <span class="expand-icon">&#9658;</span> 
+                `;
+                header.onclick = () => toggleDailyTransactions(date);
 
                 const content = document.createElement('div');
                 content.classList.add('daily-transactions-content');
-                content.id = `transactions-for-${date}`; // Đặt ID để có thể đóng/mở
+                content.id = `transactions-for-${date}`; 
 
-                // Bảng chi tiết giao dịch cho ngày này
                 const table = document.createElement('table');
                 table.innerHTML = `
                     <thead>
@@ -456,7 +525,6 @@
                 `;
                 const tbody = table.querySelector('tbody');
 
-                // Thêm từng giao dịch vào bảng của ngày tương ứng
                 dailyData[date].transactions.forEach((transaction) => {
                     const row = tbody.insertRow();
                     
@@ -469,84 +537,4 @@
 
                     const typeCell = row.insertCell();
                     typeCell.textContent = transaction.type === 'thu' ? 'Thu' : 'Chi';
-                    typeCell.classList.add(transaction.type === 'thu' ? 'transaction-type-thu' : 'transaction-type-chi');
-
-                    const actionCell = row.insertCell();
-                    actionCell.classList.add('action-buttons');
-                    
-                    const editButton = document.createElement('button');
-                    editButton.textContent = 'Sửa';
-                    editButton.classList.add('edit-btn');
-                    editButton.onclick = () => editTransaction(transaction.id); 
-
-                    const deleteButton = document.createElement('button');
-                    deleteButton.textContent = 'Xóa';
-                    deleteButton.classList.add('delete-btn');
-                    deleteButton.onclick = () => deleteTransaction(transaction.id); 
-
-                    actionCell.appendChild(editButton);
-                    actionCell.appendChild(deleteButton);
-                });
-
-                content.appendChild(table);
-                dailySection.appendChild(header);
-                dailySection.appendChild(content);
-                transactionDisplayArea.appendChild(dailySection); // Thêm phần ngày vào khu vực hiển thị chính
-            });
-
-            document.getElementById('overallBalance').textContent = formatCurrency(overallBalance);
-        }
-
-        function loadTransactions() {
-            displayTransactions();
-        }
-
-        function formatCurrency(amount) {
-            return amount.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
-        }
-
-        function formatDate(dateString) {
-            const [year, month, day] = dateString.split('-');
-            return `${day}/${month}/${year}`;
-        }
-
-        function editTransaction(id) {
-            const transactions = getTransactions();
-            const transactionToEdit = transactions.find(t => t.id === id);
-
-            if (transactionToEdit) {
-                document.getElementById('amount').value = transactionToEdit.amount; 
-                document.getElementById('description').value = transactionToEdit.description;
-                document.getElementById('date').value = transactionToEdit.date; 
-                document.getElementById('type').value = transactionToEdit.type;
-
-                editingTransactionId = id; 
-                document.getElementById('addOrUpdateBtn').textContent = 'Cập Nhật Giao Dịch'; 
-                
-                formatAmountInput(document.getElementById('amount'));
-            }
-        }
-
-        function deleteTransaction(id) {
-            if (confirm('Bạn có chắc chắn muốn xóa giao dịch này không?')) {
-                let transactions = getTransactions();
-                transactions = transactions.filter(t => t.id !== id); 
-                saveTransactions(transactions);
-                displayTransactions(); 
-                
-                editingTransactionId = null;
-                document.getElementById('addOrUpdateBtn').textContent = 'Thêm Giao Dịch';
-            }
-        }
-
-        function promptForNote(date) {
-            const currentNote = dailyNotes[date] || '';
-            const newNote = prompt(`Nhập ghi chú cho ngày ${formatDate(date)}:`, currentNote);
-            if (newNote !== null) { 
-                saveDailyNote(date, newNote);
-            }
-        }
-    </script>
-</body>
-</html>
-
+                    typeCell.classList.add(transaction.type === 'thu' ? 'tran
